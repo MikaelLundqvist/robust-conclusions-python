@@ -1,3 +1,0 @@
-"""
-Placeholder -- not yet written.
-"""

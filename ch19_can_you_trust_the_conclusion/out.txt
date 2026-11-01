@@ -1,0 +1,92 @@
+6,000 employees. Bonus (x1.6): ENG 2.1%, SAL 14.4%, OPS 2.5%, FIN 2.1%; everyone 5.3%.
+Average pay uplift from the bonus: 3.1% overall, ENG 1.2%, SAL 8.6%, OPS 1.4%, FIN 1.2%.
+
+=== 1. feature_robustness_report, default (median) thresholds ===
+      feature  stability_pct  cook_impact_pct  n_flagged                quadrant
+0         age          2.817            0.991        288                 fragile
+1  commute_km          1.868            0.742        261          data_sensitive
+2      tenure          2.758            0.517        250                 fragile
+3  experience          3.285            0.408        330  structural_sensitivity
+4   team_size          1.753            0.208        150                  robust
+
+=== 2. the same features, another candidate set, or a fixed tolerance ===
+              default (5 features) 3 features fixed tolerance, by hand
+feature                                                               
+experience  structural_sensitivity    fragile         within 5% and 2%
+tenure                     fragile          -         within 5% and 2%
+age                        fragile          -         within 5% and 2%
+commute_km          data_sensitive    fragile         within 5% and 2%
+team_size                   robust     robust         within 5% and 2%
+experience: stability 3.285 / impact 0.408 in the first, 3.285 / 0.408 in the second
+
+=== 3. segment_stability_report, finest cells ===
+34 segments, 32 at the finest level
+       segment   n  median_pct_diff  max_pct_diff
+  SAL_L2_North 188             8.81         19.35
+SAL_L3_Central 126             8.77         10.12
+SAL_L1_Central 268             8.58          9.57
+  SAL_L3_North 127             8.54         12.52
+SAL_L2_Central 210             7.77         10.36
+median_pct_diff of the finest cells, by job family:
+        count   min  median   max
+family                           
+ENG         9  0.45    1.44  3.19
+SAL         8  6.08    8.15  8.81
+OPS         8  0.81    2.06  3.19
+FIN         7  0.93    1.67  2.22
+
+=== 4. segment_stability_drilldown_report, median_pct_diff by hierarchy level ===
+               count   min  median   max
+segment_level                           
+0                 32  0.45    2.02  8.81
+1                  9  2.68    3.04  3.99
+2                  3  3.11    3.29  3.44
+
+=== 5. segment_quality_report, finest cells ===
+       segment   n  median_pct_diff  n_flagged  cook_impact_pct  mdape  iqr_resid
+  SAL_L2_North 188             8.81         10             0.48   5.41    5303.40
+SAL_L3_Central 126             8.77          7             0.48   5.51    6591.82
+SAL_L1_Central 268             8.58         18             0.98   5.10    3943.69
+  SAL_L3_North 127             8.54          5             1.39   6.42    7407.98
+SAL_L2_Central 210             7.77          9             0.60   5.06    4960.07
+median by job family:
+        median_pct_diff  cook_impact_pct  mdape  iqr_resid
+family                                                    
+ENG                1.44             0.23   4.00    3830.51
+SAL                8.15             0.69   5.08    4751.01
+OPS                2.06             0.40   4.34    3802.54
+FIN                1.67             0.26   3.74    2896.66
+Top 8 cells by stability spread that are SAL: 8
+
+=== 6. pointwise_stability_report: 3,000 staff, 60 with under 3 years of experience, 2% bonus ===
+    x  method_spread_pct  band_width_pct  local_n  ratio dominant
+ 0.06               0.82            2.55       37   0.32 sampling
+ 4.34               0.91            1.10      257   0.83 sampling
+ 8.61               1.00            0.64      329   1.56   method
+12.89               1.08            0.62      348   1.74   method
+17.17               1.18            0.69      338   1.70   method
+21.45               1.28            0.68      326   1.88   method
+25.73               1.40            0.66      313   2.12   method
+30.00               1.55            0.79      316   1.96   method
+34.28               1.73            1.33      216   1.30   method
+dominant: method 42 grid points, sampling 8 (x from 0.1 to 5.0)
+built-in method gap: 2% x 60% = 1.2%
+
+=== 7. the same numbers from model_stability_pct and bootstrap_band ===
+method spread equal: True; band width equal: True; local_n equal: True
+sampling where band is wider: 8 of 50 grid points
+
+A group of 305: 300 under 8 years, 5 over 25
+    x  method_spread_pct  band_width_pct  local_n
+ 0.05               1.29            3.49       64
+ 4.41               1.41            1.63      111
+ 8.77               1.40            2.66       27
+13.13               1.29            3.78        0
+17.49               1.12            4.98        0
+21.85               0.92            6.65        0
+26.21               0.67            9.76        0
+30.57               0.34           13.72        4
+no observation nearby at 27 of 50 grid points (x from 10.0 to 26.2); method spread there at most 1.37%, band width at least 3.05%
+
+Saved conclusion_trust.png
+Saved pointwise_stability.png

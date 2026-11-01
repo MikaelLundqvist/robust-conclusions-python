@@ -1,0 +1,66 @@
+4,000 employees; target salary. Built in: experience and level drive pay; job family moderate; commission_plan +30% in SAL only; site, office_code, badge_number no effect.
+
+=== 1. rank_features: relevance to salary ===
+           feature  mutual_information  entropy_bits  information_efficiency
+0       experience               0.897         2.322                   0.386
+1            level               0.432         1.538                   0.281
+2       job_family               0.186         1.990                   0.093
+3  commission_plan               0.031         1.000                   0.031
+4      office_code               0.007         5.316                   0.001
+5     badge_number               0.008         7.607                   0.001
+6             site               0.000         1.556                   0.000
+
+=== 2. rank_by_communication, default weights ===
+           feature  raw_mutual_information  mutual_information  stability  group_size_score  compressibility  interpretability  communication_index
+0       experience                   0.897               1.000      0.466              1.00            0.500               1.0                0.816
+1            level                   0.432               0.482      0.326              1.00            0.750               1.0                0.625
+2       job_family                   0.186               0.207      0.029              1.00            0.625               1.0                0.442
+3  commission_plan                   0.031               0.034      0.000              1.00            0.875               1.0                0.399
+4             site                   0.000               0.000      0.007              1.00            0.750               1.0                0.377
+5      office_code                   0.007               0.008      0.013              1.00            0.000               1.0                0.306
+6     badge_number                   0.008               0.009      0.030              0.55            0.000               1.0                0.221
+
+=== 3. communication_score for job_family alone ===
+MI normalised against itself: 1.000 (raw 0.183; in the ranking above raw was 0.186, normalised 0.207)
+communication_index alone 0.720 vs in the ranking 0.442
+
+=== 4. weights and an audience prior (experience 0.2, level 1.0, job_family 1.0) ===
+weights summing to 1 (interpretability 0.40):
+        feature  communication_index
+          level                0.744
+     job_family                0.619
+commission_plan                0.596
+           site                0.576
+     experience                0.550
+    office_code                0.504
+   badge_number                0.462
+weights={'interpretability': 0.5} alone is merged with the defaults: weights sum to 1.40; top index 1.025
+
+=== 5. pair_redundancy (0 = independent, 1 = redundant) ===
+experience / level   0.502
+site / job_family    0.001
+
+=== 6. synergy and conditional information ===
+commission_plan MI with salary: whole staff 0.031, within SAL 0.284, within the rest 0.000
+pair_synergy(job_family, commission_plan) = 0.042
+pair_synergy(commission_plan, job_family) = 0.052
+pair_synergy(site, job_family)            = 0.005
+pair_synergy(experience, job_family)      = 0.424
+pair_synergy(job_family, experience)      = 0.609
+conditional_mutual_information(commission_plan; salary | job_family) = 0.074
+conditional_mutual_information(commission_plan; salary | site)       = 0.018
+
+=== 7. rank_communicative_pairs ===
+    feature_1        feature_2  mi_feature_1  mi_feature_2  redundancy  synergy dominant_feature  pair_score
+0  experience       job_family         0.897         0.186       0.006    1.033       experience       2.109
+1  experience  commission_plan         0.897         0.031       0.000    0.089       experience       1.016
+2       level       job_family         0.432         0.186       0.000    0.308            level       0.926
+3  experience             site         0.897         0.000       0.013    0.029       experience       0.914
+4  experience            level         0.897         0.432       0.502   -0.851       experience       0.661
+5       level  commission_plan         0.432         0.031       0.000    0.057            level       0.519
+6       level             site         0.432         0.000       0.000    0.011            level       0.442
+7  job_family  commission_plan         0.186         0.031       0.000    0.094       job_family       0.310
+8  job_family             site         0.186         0.000       0.001    0.012       job_family       0.197
+9        site  commission_plan         0.000         0.031       0.000   -0.014  commission_plan       0.031
+
+Saved feature_communication.png

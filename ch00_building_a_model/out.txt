@@ -1,0 +1,26 @@
+600 field plots: 432 to fit on, 168 held out. Built in: a curve (3.0 + 0.045 n - 0.00011 n^2 tonnes per hectare), 6% noise, 5% of plots yield 40% less.
+
+=== 1. Choose a form: Huber fits of increasing degree, error on held-out plots ===
+ degree  train_rmse  held_out_rmse  held_out_median_abs_err
+      1       0.673          0.696                    0.308
+      2       0.614          0.637                    0.227
+      3       0.613          0.637                    0.230
+      4       0.613          0.638                    0.223
+      5       0.613          0.639                    0.228
+      6       0.613          0.638                    0.224
+optimiser did not converge within its iteration limit at degree: 6
+
+=== 2. Fit degree 2: OLS against Huber, error against the true curve ===
+  OLS: mean error  -0.104, largest error  0.146 tonnes per hectare
+Huber: mean error  -0.042, largest error  0.053 tonnes per hectare
+
+=== 3. Check the residuals (Huber, degree 2) ===
+median residual -0.010; robust spread (MAD) 0.353; 21 of 432 below -3 MAD
+median residual by nitrogen: under 50 kg -0.019, 50-120 0.010, 120 and over -0.017
+
+=== 4. Say how sure: bootstrap band for the Huber trend ===
+95% band contains the true curve at 25 of 31 grid points
+it misses at nitrogen 13 to 47 kg, where the fitted curve is 0.046 t/ha too low (about 1.1% of the true yield)
+band width: 1.4% to 4.9% of the curve; widest at x = 200.0
+
+Saved model_building.png

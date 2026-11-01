@@ -78,7 +78,7 @@ def main():
     ax.axvline(0, color="black", linewidth=1, linestyle="--")
     ax.set_yticks(y_pos)
     ax.set_yticklabels(order["segment"])
-    ax.set_xlabel("Difference from shared benchmark (SEK)")
+    ax.set_xlabel("Difference from shared benchmark ($)")
     ax.set_title("Which families actually differ from the benchmark?")
     fig.tight_layout()
     fig.savefig("segment_position.png", dpi=150)

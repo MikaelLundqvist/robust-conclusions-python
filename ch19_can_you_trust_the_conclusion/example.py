@@ -31,6 +31,7 @@ import matplotlib.pyplot as plt
 from robustkit import (
     feature_robustness_report, plot_feature_robustness,
     segment_stability_report, segment_stability_drilldown_report, segment_quality_report,
+    pointwise_stability_report, plot_pointwise_stability, model_stability_pct, bootstrap_band,
 )
 
 FAMILIES = ["ENG", "SAL", "OPS", "FIN"]
@@ -59,6 +60,24 @@ def make_staff(seed=1301, n=6000):
     df["team_size"] = team
     df["clean_salary"] = clean
     return df
+
+
+def make_sparse_young(seed=1601, n=3000, bonus_rate=0.02):
+    """3,000 staff with experience, of whom only 60 have under 3 years; a 2% bonus (x1.6)."""
+    rng = np.random.default_rng(seed)
+    exp = np.concatenate([rng.uniform(0, 3, 60), rng.uniform(3, 35, n - 60)])
+    salary = (32000 + 2200 * exp - 40 * exp ** 2) * np.exp(rng.normal(0, 0.06, n))
+    salary = np.where(rng.random(n) < bonus_rate, salary * 1.6, salary)
+    return exp, salary
+
+
+def make_gap(seed=1, n_young=300, n_old=5):
+    """A group with most people under 8 years of experience and only 5 above 25; 2% bonus (x1.6)."""
+    rng = np.random.default_rng(seed)
+    exp = np.concatenate([rng.uniform(0, 8, n_young), rng.uniform(25, 35, n_old)])
+    salary = (32000 + 2200 * exp - 40 * exp ** 2) * np.exp(rng.normal(0, 0.06, len(exp)))
+    salary = np.where(rng.random(len(exp)) < 0.02, salary * 1.6, salary)
+    return exp, salary
 
 
 def main():
@@ -133,6 +152,43 @@ def main():
     print(f"Top 8 cells by stability spread that are SAL: {int((top8.family == 'SAL').sum())}")
 
     # ------------------------------------------------------------------
+    # 6. Where along x? Methods against sampling uncertainty.
+    # ------------------------------------------------------------------
+    xs, ys = make_sparse_young()
+    pw = pointwise_stability_report(xs, ys, n_boot=300)
+    print("\n=== 6. pointwise_stability_report: 3,000 staff, 60 with under 3 years of experience, 2% bonus ===")
+    print(pw[["x", "method_spread_pct", "band_width_pct", "local_n", "ratio", "dominant"]]
+          .iloc[::6].round(2).to_string(index=False))
+    dom = pw["dominant"].value_counts()
+    samp = pw.loc[pw.dominant == "sampling", "x"]
+    print(f"dominant: method {int(dom.get('method', 0))} grid points, sampling {int(dom.get('sampling', 0))} "
+          f"(x from {samp.min():.1f} to {samp.max():.1f})")
+    print(f"built-in method gap: 2% x 60% = {0.02 * 60:.1f}%")
+
+    # ------------------------------------------------------------------
+    # 7. The same thing with the two older functions.
+    # ------------------------------------------------------------------
+    stab = model_stability_pct(xs, ys)                        # methods, 50 grid points
+    band = bootstrap_band(xs, ys, n_boot=300)                 # bootstrap band, same grid
+    width_pct = (band["upper"] - band["lower"]) / stab["huber"] * 100
+    half = 0.1 * (xs.max() - xs.min()) / 2                    # window: a tenth of the x range
+    near = np.array([(np.abs(xs - g) <= half).sum() for g in stab["grid"]])
+    print("\n=== 7. the same numbers from model_stability_pct and bootstrap_band ===")
+    print(f"method spread equal: {np.allclose(stab['pct_spread'], pw['method_spread_pct'])}; "
+          f"band width equal: {np.allclose(width_pct, pw['band_width_pct'])}; "
+          f"local_n equal: {bool((near == pw['local_n']).all())}")
+    print(f"sampling where band is wider: {int((width_pct > stab['pct_spread']).sum())} of {len(near)} grid points")
+
+    xg, yg = make_gap()
+    pg = pointwise_stability_report(xg, yg, n_boot=300)
+    print(f"\nA group of {len(xg)}: {int((xg < 8).sum())} under 8 years, {int((xg > 25).sum())} over 25")
+    print(pg[["x", "method_spread_pct", "band_width_pct", "local_n"]].iloc[::7].round(2).to_string(index=False))
+    empty = pg.loc[pg.local_n == 0, "x"]
+    print(f"no observation nearby at {len(empty)} of {len(pg)} grid points (x from {empty.min():.1f} to {empty.max():.1f}); "
+          f"method spread there at most {pg.loc[pg.local_n == 0, 'method_spread_pct'].max():.2f}%, "
+          f"band width at least {pg.loc[pg.local_n == 0, 'band_width_pct'].min():.2f}%")
+
+    # ------------------------------------------------------------------
     # Figure
     # ------------------------------------------------------------------
     fig, ax = plt.subplots(1, 2, figsize=(11.5, 4.3))
@@ -149,6 +205,12 @@ def main():
     fig.tight_layout()
     fig.savefig("conclusion_trust.png", dpi=130)
     print("\nSaved conclusion_trust.png")
+    fig2, ax2 = plt.subplots(figsize=(9, 4.8))
+    plot_pointwise_stability(xs, ys, report=pw, ax=ax2)
+    ax2.set_xlabel("years of experience")
+    fig2.tight_layout()
+    fig2.savefig("pointwise_stability.png", dpi=130)
+    print("Saved pointwise_stability.png")
 
 
 if __name__ == "__main__":

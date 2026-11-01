@@ -1,0 +1,40 @@
+Filer att lägga in i robust-conclusions-python (kopiera över med samma sökvägar):
+
+NY      .gitignore
+ÄNDRAD README.md
+ÄNDRAD ch01_why_robust_analysis/example.py
+ÄNDRAD ch01_why_robust_analysis/ols_vs_huber.png
+NY      appendix_a_which_features_make_a_good_chart/README.md
+NY      appendix_a_which_features_make_a_good_chart/example.py
+NY      appendix_a_which_features_make_a_good_chart/feature_communication.png
+NY      appendix_a_which_features_make_a_good_chart/out.txt
+NY      appendix_b_the_small_tools/README.md
+NY      appendix_b_the_small_tools/example.py
+NY      appendix_b_the_small_tools/feature_map.png
+NY      appendix_b_the_small_tools/out.txt
+NY      appendix_b_the_small_tools/trend_views.png
+NY      ch00_building_a_model/README.md
+NY      ch00_building_a_model/example.py
+NY      ch00_building_a_model/model_building.png
+NY      ch00_building_a_model/out.txt
+ÄNDRAD ch09_comparing_groups_to_a_model/example.py
+ÄNDRAD ch09_comparing_groups_to_a_model/segment_position.png
+ÄNDRAD ch13_custom_benchmarks_and_reference_curves/example.py
+ÄNDRAD ch13_custom_benchmarks_and_reference_curves/reference_mode_comparison.png
+NY      ch15_from_analysis_to_report/README.md
+NY      ch16_when_you_only_have_aggregates/README.md
+NY      ch16_when_you_only_have_aggregates/waiting_times.json
+NY      ch17_when_you_only_have_one_number/README.md
+ÄNDRAD ch18_is_the_benchmark_missing_something/README.md
+ÄNDRAD ch18_is_the_benchmark_missing_something/benchmark_screening.png
+ÄNDRAD ch18_is_the_benchmark_missing_something/example.py
+NY      ch18_is_the_benchmark_missing_something/out.txt
+ÄNDRAD ch19_can_you_trust_the_conclusion/README.md
+ÄNDRAD ch19_can_you_trust_the_conclusion/example.py
+NY      ch19_can_you_trust_the_conclusion/out.txt
+NY      ch19_can_you_trust_the_conclusion/pointwise_stability.png
+ÄNDRAD ch20_from_a_gap_to_the_people_behind_it/gap_decomposition.png
+NY      ch21_does_the_flag_survive/out.txt
+ÄNDRAD requirements.txt
+
+Ta inte bort något i repot. Filer som bara finns på GitHub (t.ex. ch01_why_robust_analysis, ch02/ch02_example.py, ch20 *.xlsx) är orörda.

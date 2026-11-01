@@ -4,9 +4,10 @@
 
 ## Status
 Fully verified end-to-end (statsmodels 0.14.6 from user-supplied wheels).
-Covers 5 functions: feature_robustness_report, plot_feature_robustness,
+Covers 7 functions: feature_robustness_report, plot_feature_robustness,
 segment_stability_report, segment_stability_drilldown_report,
-segment_quality_report. 
+segment_quality_report, pointwise_stability_report, plot_pointwise_stability
+(the last two were added to the package after the first draft of this chapter). 
 
 ## Design
 6,000 synthetic employees, seed 1301. Salary = (32000 + 2200 x exp - 40 x exp^2)
@@ -27,6 +28,14 @@ SAL 8.6%, ENG 1.2%, OPS 1.4%, FIN 1.2%. Features: experience, tenure, age
 - Drilldown: level 0 range 0.45-8.81, level 1 2.68-3.99, level 2 3.11-3.44.
 - Quality report: SAL worst on every measure but only stability separates
   clearly (8.15 vs 1.44-2.06).
+
+- Pointwise (3,000 staff, 60 under 3 years, 2% bonus): method spread 0.82% (x=0.06) to 1.73% (x=34.28),
+  built-in gap 2% x 60% = 1.2%; bootstrap band width 2.55% at the young end (37 observations nearby)
+  vs about 0.6-0.8% where there are over 300; dominant = sampling for 8 grid points (x 0.1 to 5.0),
+  method for 42. Seed 1601, n_boot=300.
+- Same numbers from model_stability_pct + bootstrap_band + NumPy: spread, band width and local_n all equal the report's; 8 of 50 grid points are 'sampling'.
+- Gap group (300 under 8 years, 5 over 25, seed 1): no observation nearby at 27 of 50 grid points (x 10.0-26.2);
+  method spread there at most 1.37%, band width at least 3.05%; at x=30.57 spread 0.34%, band 13.72%.
 
 ## Caveats stated in the chapter
 - feature_robustness_report with features=None fails on text columns.

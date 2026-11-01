@@ -1,16 +1,21 @@
 """
 Chapter 13 -- Custom Benchmarks and Reference Curves
-===================================
+====================================================
 
-Compass: a benchmark model can use as many columns as you give it --
-and the choice between reference="model", "curve", and
-"benchmark_curve" isn't just about how smooth the chart looks, it can
-determine whether a genuine underpayment is caught at all.
+Compass: a benchmark model can use as many columns as you give it.
+reference="model" uses all of them for every person. The curve-based
+modes (reference="curve" / "benchmark_curve") fit a curve over x_col
+inside each segment, so they keep the model's information only for
+the variables the segmentation holds constant. Add the model's
+variables to segment_cols, one at a time, and watch the information
+come back.
 
 Run with:
 
     python example.py
 """
+
+import warnings
 
 import numpy as np
 import pandas as pd
@@ -18,113 +23,120 @@ from sklearn.linear_model import HuberRegressor
 
 from robustkit import mad_outlier_report
 
+warnings.filterwarnings("ignore")
 
-def make_data(seed=101, n=1000):
+N = 600            # employees per simulated company
+N_INJECT = 12      # underpaid employees per company
+CUT = 6000         # size of each underpayment
+N_SEEDS = 30       # simulated companies
+
+FEATURES = ["age", "JobFamily", "level", "location"]
+CATS = ["JobFamily", "level", "location"]
+
+SEGMENTATIONS = {
+    "Family": ["JobFamily"],
+    "Family + level": ["JobFamily", "level"],
+    "Family + level + location": ["JobFamily", "level", "location"],
+}
+MODES = ["model", "benchmark_curve", "curve"]
+
+
+def make_data(seed, n=N):
     """
-    Salary depends on age, job family, AND level -- three factors, not
-    one. A benchmark that only knows about age will systematically
-    misjudge anyone whose family/level combination differs from the
-    population average, in either direction.
+    Salary depends on age, job family, level AND location. `truth` is
+    the noise-free salary, so we can measure how close each reference's
+    expected value gets to it. N_INJECT employees are underpaid by CUT.
     """
     rng = np.random.default_rng(seed)
     job_family = rng.choice(["ENG", "ITS", "FIN"], n, p=[0.4, 0.35, 0.25])
     level = rng.choice(["L1", "L2", "L3"], n, p=[0.5, 0.35, 0.15])
+    location = rng.choice(["A", "B", "C"], n, p=[0.5, 0.3, 0.2])
     age = rng.uniform(25, 60, n)
     family_bump = {"ENG": 3000, "ITS": 1000, "FIN": 0}
     level_bump = {"L1": 0, "L2": 6000, "L3": 14000}
-    salary = (32000 + 380 * age + np.array([family_bump[f] for f in job_family])
-              + np.array([level_bump[l] for l in level]) + rng.normal(0, 900, n))
-    df = pd.DataFrame({"JobFamily": job_family, "level": level, "age": age, "salary": salary,
-                        "emp_id": [f"E{i}" for i in range(n)]})
+    location_bump = {"A": 0, "B": 4000, "C": 8000}
+    truth = (32000 + 380 * age
+             + np.array([family_bump[f] for f in job_family])
+             + np.array([level_bump[l] for l in level])
+             + np.array([location_bump[o] for o in location]))
+    df = pd.DataFrame({"JobFamily": job_family, "level": level, "location": location,
+                       "age": age, "salary": truth + rng.normal(0, 900, n), "truth": truth,
+                       "emp_id": np.arange(n)})
+    injected = rng.choice(n, N_INJECT, replace=False)
+    df["injected"] = False
+    df.loc[injected, "injected"] = True
+    df.loc[injected, "salary"] -= CUT
     return df
 
 
 class CustomBenchmark:
     """Any object with predict(dataframe) -> array works as benchmark_fit
-    -- robustkit never needs to know it uses three columns, not one."""
+    -- robustkit never needs to know it uses four columns, not one."""
     def __init__(self, df):
-        self.X_columns = pd.get_dummies(df[["age", "JobFamily", "level"]], columns=["JobFamily", "level"], drop_first=True).columns
-        X = pd.get_dummies(df[["age", "JobFamily", "level"]], columns=["JobFamily", "level"], drop_first=True)
-        self.model = HuberRegressor()
+        X = pd.get_dummies(df[FEATURES], columns=CATS, drop_first=True)
+        self.X_columns = X.columns
+        self.model = HuberRegressor(max_iter=500)
         self.model.fit(X, df["salary"])
 
     def predict(self, sub_df):
-        Xs = pd.get_dummies(sub_df[["age", "JobFamily", "level"]], columns=["JobFamily", "level"], drop_first=True)
-        Xs = Xs.reindex(columns=self.X_columns, fill_value=0)
-        return self.model.predict(Xs)
+        Xs = pd.get_dummies(sub_df[FEATURES], columns=CATS, drop_first=True)
+        return self.model.predict(Xs.reindex(columns=self.X_columns, fill_value=0))
+
+
+def evaluate(df, segment_cols, reference, benchmark_fit):
+    rep = mad_outlier_report(df, y_col="salary", segment_cols=segment_cols, x_col="age",
+                             benchmark_fit=benchmark_fit, min_size=20, k=3.0,
+                             id_cols=["emp_id"], reference=reference)
+    m = rep.merge(df[["emp_id", "truth", "injected"]], on="emp_id")
+    return {"recall": (m["flagged"] & m["injected"]).sum() / N_INJECT,
+            "false_flags": int((m["flagged"] & ~m["injected"]).sum()),
+            "rmse": float(np.sqrt(np.mean((m["expected"] - m["truth"]) ** 2)))}
 
 
 def main():
-    df = make_data()
+    rows = []
+    for seed in range(N_SEEDS):
+        df = make_data(seed)
+        fit = CustomBenchmark(df)
+        for seg_name, seg_cols in SEGMENTATIONS.items():
+            # Age-only baseline: robustkit's default single-column trend.
+            rows.append({"segmentation": seg_name, "mode": "age-only (no model)",
+                         **evaluate(df, seg_cols, "model", None)})
+            for mode in MODES:
+                rows.append({"segmentation": seg_name, "mode": mode,
+                             **evaluate(df, seg_cols, mode, fit)})
+    res = pd.DataFrame(rows)
+    summary = (res.groupby(["segmentation", "mode"], sort=False)
+                  [["recall", "false_flags", "rmse"]].mean())
 
-    # A genuine underpayment: an FIN, L3 (senior-level), age 29 employee
-    # docked $9,000 -- but L3 is a rare, high-paying level (14 of the
-    # bumps), so on a simple age-only trend this barely registers.
-    fn_idx = df[(df["level"] == "L3") & (df["age"] < 35) & (df["JobFamily"] == "FIN")].index[0]
-    df.loc[fn_idx, "salary"] -= 9000
-    fn_id = df.loc[fn_idx, "emp_id"]
-    print(f"Injected case: {fn_id}, {df.loc[fn_idx, ['JobFamily','level','age']].to_dict()}, docked $9,000")
+    print(f"{N_SEEDS} simulated companies, {N} employees each, {N_INJECT} underpaid by ${CUT:,}\n")
+    print("recall = share of underpaid people flagged; false_flags = other people flagged per company;")
+    print("rmse = error of the expected value against the noise-free salary ($)\n")
+    print(summary.round(2).to_string())
 
-    # --- Simple benchmark: age only ---
-    report_simple = mad_outlier_report(df, y_col="salary", segment_cols=["JobFamily"], x_col="age",
-                                        min_size=20, k=3.0, id_cols=["emp_id"])
-    residual_simple = report_simple[report_simple["emp_id"] == fn_id]["residual"].values[0]
-    flagged_simple = report_simple[report_simple["emp_id"] == fn_id]["flagged"].values[0]
-
-    # --- Custom benchmark: age + JobFamily + level ---
-    custom_fit = CustomBenchmark(df)
-    report_custom = mad_outlier_report(df, y_col="salary", segment_cols=["JobFamily"], x_col="age",
-                                        benchmark_fit=custom_fit, min_size=20, k=3.0, id_cols=["emp_id"])
-    residual_custom = report_custom[report_custom["emp_id"] == fn_id]["residual"].values[0]
-    flagged_custom = report_custom[report_custom["emp_id"] == fn_id]["flagged"].values[0]
-
-    print(f"\nSimple (age-only) benchmark: residual=${residual_simple:,.0f}, flagged={flagged_simple}")
-    print(f"Custom (age+family+level) benchmark: residual=${residual_custom:,.0f}, flagged={flagged_custom}")
-
-    # --- Now compare all three `reference` modes against the SAME custom model ---
-    print(f"\n=== reference mode comparison, all using the custom benchmark ===")
-    for ref in ["model", "curve", "benchmark_curve"]:
-        report = mad_outlier_report(df, y_col="salary", segment_cols=["JobFamily"], x_col="age",
-                                     benchmark_fit=custom_fit, min_size=20, k=3.0, id_cols=["emp_id"], reference=ref)
-        row = report[report["emp_id"] == fn_id]
-        print(f"reference={ref!r}: residual=${row['residual'].values[0]:,.0f}, flagged={row['flagged'].values[0]}, "
-              f"total flagged in dataset={int(report['flagged'].sum())}")
-
-    print(
-        "\nreference='model' catches the case: it uses the custom"
-        "\nmodel's own prediction for THIS person, which already knows"
-        "\nthey're L3 (a high-paying level). reference='curve' and"
-        "\n'benchmark_curve' both MISS it -- because both fit a curve"
-        "\nagainst x_col (age) ALONE, within the FIN segment. Level isn't"
-        "\npart of x_col, so fitting a 1-dimensional curve over age"
-        "\nsmooths right over the L1/L2/L3 differences, re-absorbing the"
-        "\nlevel effect the same way a simple age-only benchmark would."
-        "\nA custom, multivariate model only pays off with reference='model'"
-        "\n-- pairing it with a curve-based reference throws away exactly"
-        "\nthe extra structure that made the custom model worth building."
-    )
-
-    # --- Chart: the same person's residual under each approach ---
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    labels = ["Simple\n(age only)", "Custom +\nreference='model'", "Custom +\nreference='curve'", "Custom +\nreference='benchmark_curve'"]
-    residuals = [residual_simple]
-    for ref in ["model", "curve", "benchmark_curve"]:
-        report = mad_outlier_report(df, y_col="salary", segment_cols=["JobFamily"], x_col="age",
-                                     benchmark_fit=custom_fit, min_size=20, k=3.0, id_cols=["emp_id"], reference=ref)
-        residuals.append(report[report["emp_id"] == fn_id]["residual"].values[0])
-
-    fig, ax = plt.subplots(figsize=(8.5, 5.5))
-    colors = ["#d62728" if r < -3000 else "#7f7f7f" for r in residuals]
-    ax.bar(labels, residuals, color=colors)
-    ax.axhline(0, color="black", linewidth=0.8)
-    ax.axhline(-9000, color="orange", linestyle="--", linewidth=1, label="Actual underpayment ($9,000)")
-    ax.set_ylabel("Residual for this one employee ($)")
-    ax.set_title("Same person, same $9,000 underpayment, four different verdicts")
-    ax.legend()
-    fig.tight_layout()
+    segs = list(SEGMENTATIONS)
+    modes = ["age-only (no model)"] + MODES
+    colors = {"age-only (no model)": "#bbbbbb", "model": "#1f77b4",
+              "benchmark_curve": "#2ca02c", "curve": "#ff7f0e"}
+    fig, axes = plt.subplots(1, 2, figsize=(11, 5))
+    width = 0.2
+    for ax, col, title, fmt in [(axes[0], "rmse", "Error of the expected value ($, lower is better)", "{:,.0f}"),
+                                (axes[1], "recall", "Underpaid people caught (higher is better)", "{:.0%}")]:
+        for i, mode in enumerate(modes):
+            vals = [summary.loc[(s, mode), col] for s in segs]
+            xs = np.arange(len(segs)) + (i - 1.5) * width
+            ax.bar(xs, vals, width, label=mode, color=colors[mode])
+        ax.set_xticks(np.arange(len(segs)))
+        ax.set_xticklabels([s.replace(" + ", "\n+ ") for s in segs])
+        ax.set_title(title, fontsize=10)
+    handles, labels = axes[0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc="lower center", ncol=4, fontsize=9, frameon=False)
+    fig.suptitle("Segmenting by the model's variables brings its information back into the curves")
+    fig.tight_layout(rect=(0, 0.06, 1, 1))
     fig.savefig("reference_mode_comparison.png", dpi=150)
     print("\nChart saved to reference_mode_comparison.png")
 

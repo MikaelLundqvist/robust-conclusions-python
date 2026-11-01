@@ -53,6 +53,7 @@ def main():
     huber_pred = predict_trend(huber_fit, check_ages)
 
     print(f"Dataset: {len(age)} employees (5 of them senior executives)\n")
+    print("Predicted monthly salary (USD)")
     print(f"{'Age':>5} {'OLS predicts':>15} {'Huber predicts':>16} {'Difference':>18}")
     for a, o, h in zip(check_ages, ols_pred, huber_pred):
         diff = o - h
@@ -76,10 +77,11 @@ def main():
 
     fig, ax = plt.subplots(figsize=(9, 6))
     ax.scatter(age, salary, s=20, alpha=0.5, color="gray", label="Employees")
-    ax.plot(grid, ols_curve, color="crimson", linewidth=2, label="OLS")
+    ax.plot(grid, ols_curve, color="crimson", linewidth=2, linestyle="--", label="OLS")
     ax.plot(grid, huber_curve, color="steelblue", linewidth=2, label="Huber")
     ax.set_xlabel("Age")
-    ax.set_ylabel("Monthly salary")
+    ax.set_ylabel("Monthly salary (USD)")
+    ax.yaxis.set_major_formatter(plt.FuncFormatter(lambda v, _: f"{v:,.0f}"))
     ax.set_title("Same data, two conclusions: OLS vs. Huber")
     ax.legend()
     ax.grid(True, alpha=0.3)

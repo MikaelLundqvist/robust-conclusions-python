@@ -1,0 +1,77 @@
+5,000 used-car listings; target price. Built in: price follows 24,000 - 2,100 x + 55 x^2 (slope -2,100 + 110 x), noise grows with age, South has twice the noise and the same median.
+
+=== 1. print_profile and profile ===
+Rows: 5000, Columns: 5
+Target: price (dtype=float64, unique=1888)
+Missing values:
+  age: 153
+  region: 38
+profile() returns a dict with keys: n_rows, n_columns, columns, missing_per_column, target, target_dtype, target_n_unique
+
+After dropping rows with a missing age or region: 4,809 rows.
+
+=== 2. iqr and dispersion_ratio ===
+whole stock: iqr 7,810, dispersion_ratio 0.634
+          age   n  median    iqr  dispersion_ratio
+(-0.001, 2.4] 607 22580.0 3895.0             0.172
+   (2.4, 4.3] 617 17710.0 3000.0             0.169
+   (4.3, 5.8] 607 15140.0 2565.0             0.169
+   (5.8, 7.0] 575 13150.0 2500.0             0.190
+   (7.0, 8.3] 618 11455.0 2217.5             0.194
+   (8.3, 9.7] 584  9590.0 1992.5             0.208
+  (9.7, 11.6] 600  8165.0 1755.0             0.215
+ (11.6, 20.0] 601  5940.0 1870.0             0.315
+dispersion_by_bin, first of 4 bins: iqr 5,028, dispersion_ratio 0.253; iqr() on the same people 5,028
+
+=== 3. trend_derivative ===
+ age  estimated_slope  true_slope
+ 1.0          -2054.0     -1990.0
+ 5.0          -1592.0     -1550.0
+10.0          -1014.0     -1000.0
+15.0           -436.0      -450.0
+cars older than 12 years: 527 of 4,809; older than 15: 100
+with h=1.0 instead of 0.01 the largest change is 0.0000 dollars per year
+
+=== 4. residual_summary against segment_position_report ===
+segment    n  median_residual  mad_residual  p10_residual  p90_residual
+Central 1947            -80.0        1415.0       -1848.0        1840.0
+  North 1643            -11.0        1440.0       -1766.0        1927.0
+  South 1219             98.0        2393.0       -2518.0        3529.0
+segment    n  difference  ci_lower  ci_upper
+Central 1947       -80.0    -171.0     -24.0
+  North 1643       -11.0     -81.0      72.0
+  South 1219        98.0     -62.0     236.0
+
+=== 5. classify_quadrants ===
+quadrant
+newer, close      2262
+newer, far off      97
+older, close      2066
+older, far off     384
+thresholds in attrs: age 7.0, abs_gap 22.5%
+         share_of_listings  share_of_far_off
+region                                      
+Central              0.405             0.214
+North                0.342             0.160
+South                0.253             0.626
+
+=== 6. bca_bootstrap_ci_by_index ===
+South median gap by hand: 98 [-62, 236]
+segment_position_report:  98 [-62, 236]
+share of South listings below benchmark: 0.482 [0.452, 0.509]
+p90-p10 of residuals: South 6,047 [5,773, 6,479]; others 3,698 [3,576, 3,817]
+keys returned: estimate, lower, upper, z0, a, boot_distribution
+
+=== 7. feature_map ===
+   feature  mutual_information  information_efficiency quadrant
+       age               1.635                   0.704     star
+     brand               0.037                   0.019     star
+listing_id               0.007                   0.001     weak
+    region               0.000                   0.000     weak
+
+=== 8. plot_analyst_view and plot_publisher_view ===
+     500 cars: median bootstrap band width 3.60% of the bootstrap median curve; median dispersion_ratio of the bins 0.192
+   4,809 cars: median bootstrap band width 1.43% of the bootstrap median curve; median dispersion_ratio of the bins 0.184
+publisher view returns: x_center, n, q1, median, q3, iqr, dispersion_ratio
+
+Saved feature_map.png and trend_views.png

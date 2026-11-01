@@ -2,16 +2,19 @@
 Chapter 18 -- Is the Benchmark Missing Something?
 ==================================================
 
-Compass: a benchmark is a claim about what pay "should" be. Before
-comparing anyone with it, ask what it leaves out, and let the
-residuals say where to look.
+Compass: a benchmark is a claim about what something "should" cost.
+Before comparing anything with it, ask what it leaves out, and let
+the residuals say where to look.
 
-The staff table is synthetic and its structure is built in:
+The shipment table is synthetic and its structure is built in:
 
-  * pay is quadratic in experience (concave),
-  * job family is a multiplier: ENG x1.12, SAL x1.00, OPS x0.92, FIN x1.05,
-  * level L3 staff in South get a further +10% (an interaction),
-  * two columns are pure noise: cost_centre (8 values) and floor (4).
+  * the cost of a shipment is quadratic in distance (concave: long hauls
+    cost less per kilometre),
+  * the carrier is a multiplier: Arrow x1.12, Beacon x1.00, Cobalt x0.92,
+    Delta x1.05,
+  * heavy shipments to the South region carry a further +10% (an
+    interaction),
+  * two columns are pure noise: driver (8 values) and dock (4).
 
 Run with:
 
@@ -29,32 +32,32 @@ from robustkit import (
     benchmark_screening_report, segment_position_report, plot_segment_vs_benchmark,
 )
 
-FAMILY_MULT = {"ENG": 1.12, "SAL": 1.00, "OPS": 0.92, "FIN": 1.05}
+CARRIER_MULT = {"Arrow": 1.12, "Beacon": 1.00, "Cobalt": 0.92, "Delta": 1.05}
 
 
-def make_staff(seed=1101, n=6000):
+def make_shipments(seed=1101, n=6000):
     rng = np.random.default_rng(seed)
-    site = rng.choice(["North", "Central", "South"], n, p=[0.35, 0.40, 0.25])
-    level = rng.choice(["L1", "L2", "L3"], n, p=[0.40, 0.38, 0.22])
-    family = rng.choice(list(FAMILY_MULT), n, p=[0.30, 0.25, 0.25, 0.20])
-    mean_exp = {"L1": 3, "L2": 9, "L3": 16}
-    exp = np.clip(rng.normal([mean_exp[lv] for lv in level], 3.5), 0, 35)
-    base = 32000 + 2200 * exp - 40 * exp ** 2
-    inter = np.where((level == "L3") & (site == "South"), 1.10, 1.0)
-    salary = base * np.array([FAMILY_MULT[f] for f in family]) * inter * np.exp(rng.normal(0, 0.06, n))
+    region = rng.choice(["North", "Central", "South"], n, p=[0.35, 0.40, 0.25])
+    wclass = rng.choice(["Light", "Medium", "Heavy"], n, p=[0.40, 0.38, 0.22])
+    carrier = rng.choice(list(CARRIER_MULT), n, p=[0.30, 0.25, 0.25, 0.20])
+    mean_dist = {"Light": 3, "Medium": 9, "Heavy": 16}
+    dist = np.clip(rng.normal([mean_dist[w] for w in wclass], 3.5), 0, 35)   # in 100 km
+    base = 320 + 22 * dist - 0.4 * dist ** 2
+    inter = np.where((wclass == "Heavy") & (region == "South"), 1.10, 1.0)
+    cost = base * np.array([CARRIER_MULT[c] for c in carrier]) * inter * np.exp(rng.normal(0, 0.06, n))
     df = pd.DataFrame({
-        "site": site, "level": level, "job_family": family,
-        "cost_centre": rng.choice([f"CC{i}" for i in range(8)], n),
-        "floor": rng.choice(["F1", "F2", "F3", "F4"], n),
-        "experience": exp.round(1), "salary": salary.round(-1)})
-    df["cell"] = df.level + "_" + df.site
-    df["fam_cell"] = df.job_family + "_" + df.cell
+        "region": region, "weight_class": wclass, "carrier": carrier,
+        "driver": rng.choice([f"D{i}" for i in range(8)], n),
+        "dock": rng.choice(["K1", "K2", "K3", "K4"], n),
+        "distance": dist.round(1), "cost": cost.round(1)})
+    df["cell"] = df.weight_class + "_" + df.region
+    df["carrier_cell"] = df.carrier + "_" + df.cell
     return df
 
 
 class AdjustedBenchmark:
-    """A Huber trend on experience times one multiplier per category, for each column in `by`.
-    The multipliers are the median ratio of actual to predicted pay, re-estimated three times.
+    """A Huber trend on distance times one multiplier per category, for each column in `by`.
+    The multipliers are the median ratio of actual to predicted cost, re-estimated three times.
     Any object with predict(dataframe) can serve as a benchmark; this is a minimal one."""
 
     def __init__(self, df, y_col, x_col, degree, by=()):
@@ -82,73 +85,73 @@ def show_screen(res, cols=None, n=6):
 
 
 def main():
-    df = make_staff()
-    print(f"{len(df):,} employees. Built in: concave pay in experience; job family multipliers; "
-          f"L3 in South +10%; cost_centre and floor are noise.\n")
+    df = make_shipments()
+    print(f"{len(df):,} shipments. Built in: concave cost in distance; carrier multipliers; "
+          f"heavy shipments to South +10%; driver and dock are noise.\n")
 
     # ------------------------------------------------------------------
     # 1. Screen a deliberately simple benchmark.
     # ------------------------------------------------------------------
-    b0 = fit_huber_benchmark(df.experience, df.salary, degree=1)
-    CANDIDATES = ["site", "level", "job_family", "cost_centre", "floor"]
-    s0 = benchmark_screening_report(df, y_col="salary", benchmark_fit=b0, x_col="experience",
+    b0 = fit_huber_benchmark(df.distance, df.cost, degree=1)
+    CANDIDATES = ["region", "weight_class", "carrier", "driver", "dock"]
+    s0 = benchmark_screening_report(df, y_col="cost", benchmark_fit=b0, x_col="distance",
                                     candidate_cols=CANDIDATES)
     print("=== 1. benchmark_screening_report on a straight-line benchmark ===")
-    print(f"fit: R2 {s0['fit']['r_squared']:.3f}, RMSE {s0['fit']['rmse']:,.0f}")
-    print("polynomial degree on the raw (experience, salary) relationship:")
+    print(f"fit: R2 {s0['fit']['r_squared']:.3f}, RMSE {s0["fit"]["rmse"]:,.1f}")
+    print("polynomial degree on the raw (distance, cost) relationship:")
     print(s0["polynomial"][["degree", "r_squared", "r_squared_gain"]].round(4).to_string(index=False))
     print("categorical candidates against the benchmark's residual:")
     print(show_screen(s0, n=6))
     top = s0["interactions"]
-    noise_rows = top[top.feature.isin(["cost_centre", "floor"])]
+    noise_rows = top[top.feature.isin(["driver", "dock"])]
     print("pure-noise columns: " + ", ".join(f"{r.feature} {r.information_efficiency:.3f}"
                                               for r in noise_rows.itertuples()))
 
     # ------------------------------------------------------------------
     # 2. Fix what was found, then screen the residual again.
     # ------------------------------------------------------------------
-    b1 = AdjustedBenchmark(df, "salary", "experience", degree=2, by=["job_family"])
-    g1 = benchmark_goodness_of_fit(df, "salary", b1)
-    s1 = benchmark_screening_report(df, y_col="salary", benchmark_fit=b1,
-                                    candidate_cols=["site", "level", "floor", "cost_centre"])
-    print("\n=== 2. degree 2 and a job-family multiplier, screened again ===")
-    print("job family multipliers found: " + ", ".join(f"{k} {v:.3f}" for k, v in sorted(b1.mult["job_family"].items())))
-    print(f"fit: R2 {g1['r_squared']:.3f}, RMSE {g1['rmse']:,.0f}")
+    b1 = AdjustedBenchmark(df, "cost", "distance", degree=2, by=["carrier"])
+    g1 = benchmark_goodness_of_fit(df, "cost", b1)
+    s1 = benchmark_screening_report(df, y_col="cost", benchmark_fit=b1,
+                                    candidate_cols=["region", "weight_class", "dock", "driver"])
+    print("\n=== 2. degree 2 and a carrier multiplier, screened again ===")
+    print("carrier multipliers found: " + ", ".join(f"{k} {v:.3f}" for k, v in sorted(b1.mult["carrier"].items())))
+    print(f"fit: R2 {g1['r_squared']:.3f}, RMSE {g1["rmse"]:,.1f}")
     print(show_screen(s1, n=5))
 
     # ------------------------------------------------------------------
     # 3. Follow the lead with a position report.
     # ------------------------------------------------------------------
-    pos = segment_position_report(df, segment_col="cell", y_col="salary", benchmark_fit=b1)
+    pos = segment_position_report(df, segment_col="cell", y_col="cost", benchmark_fit=b1)
     pos["pct"] = pos["difference"] / pos["expected_median"] * 100
-    print("\n=== 3. segment_position_report by level x site, against the second benchmark ===")
+    print("\n=== 3. segment_position_report by weight class x region, against the second benchmark ===")
     print(pos[["segment", "n", "difference", "pct"]].round(1).to_string(index=False))
 
     # ------------------------------------------------------------------
     # 4. Fix the cell and screen a third time.
     # ------------------------------------------------------------------
-    b2 = AdjustedBenchmark(df, "salary", "experience", degree=2, by=["job_family", "cell"])
-    g2 = benchmark_goodness_of_fit(df, "salary", b2)
-    s2 = benchmark_screening_report(df, y_col="salary", benchmark_fit=b2,
-                                    candidate_cols=["site", "level", "floor", "cost_centre"])
-    print("\n=== 4. a level x site multiplier added, screened a third time ===")
-    print(f"L3_South multiplier {b2.mult['cell']['L3_South'] / np.median(list(b2.mult['cell'].values())):.3f} "
+    b2 = AdjustedBenchmark(df, "cost", "distance", degree=2, by=["carrier", "cell"])
+    g2 = benchmark_goodness_of_fit(df, "cost", b2)
+    s2 = benchmark_screening_report(df, y_col="cost", benchmark_fit=b2,
+                                    candidate_cols=["region", "weight_class", "dock", "driver"])
+    print("\n=== 4. a weight class x region multiplier added, screened a third time ===")
+    print(f"Heavy_South multiplier {b2.mult['cell']['Heavy_South'] / np.median(list(b2.mult['cell'].values())):.3f} "
           f"relative to the median cell (built in 1.100)")
-    print(f"fit: R2 {g2['r_squared']:.3f}, RMSE {g2['rmse']:,.0f}")
+    print(f"fit: R2 {g2['r_squared']:.3f}, RMSE {g2["rmse"]:,.1f}")
     print(show_screen(s2, n=5))
 
     # ------------------------------------------------------------------
     # Figures
     # ------------------------------------------------------------------
     fig, ax = plt.subplots(1, 3, figsize=(14, 4.3))
-    for a, (s, title) in zip(ax[:2], [(s0, "straight-line benchmark"), (s1, "after degree 2 and job family")]):
+    for a, (s, title) in zip(ax[:2], [(s0, "straight-line benchmark"), (s1, "after degree 2 and carrier")]):
         t = s["interactions"].head(6).iloc[::-1]
         a.barh(t.feature, t.information_efficiency, color="#4292c6")
         a.set_title(title)
         a.set_xlabel("information efficiency of the residual")
-    plot_segment_vs_benchmark(df, segment_col="fam_cell", segment_values=["ENG_L3_South", "ENG_L3_Central"],
-                              y_col="salary", x_col="experience", benchmark_fit=b1, ax=ax[2])
-    ax[2].set_title("ENG, level L3: South vs Central")
+    plot_segment_vs_benchmark(df, segment_col="carrier_cell", segment_values=["Arrow_Heavy_South", "Arrow_Heavy_Central"],
+                              y_col="cost", x_col="distance", benchmark_fit=b1, ax=ax[2])
+    ax[2].set_title("Arrow, heavy: South vs Central")
     ax[2].legend(loc="lower right", fontsize=8)
     fig.tight_layout()
     fig.savefig("benchmark_screening.png", dpi=130)

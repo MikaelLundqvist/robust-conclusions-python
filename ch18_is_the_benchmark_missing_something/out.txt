@@ -1,0 +1,53 @@
+6,000 shipments. Built in: concave cost in distance; carrier multipliers; heavy shipments to South +10%; driver and dock are noise.
+
+=== 1. benchmark_screening_report on a straight-line benchmark ===
+fit: R2 0.768, RMSE 49.4
+polynomial degree on the raw (distance, cost) relationship:
+ degree  r_squared  r_squared_gain
+      1     0.7680             NaN
+      2     0.7866          0.0186
+      3     0.7869          0.0003
+      4     0.7871          0.0002
+categorical candidates against the benchmark's residual:
+               feature  mutual_information  information_efficiency
+               carrier               0.538                   0.272
+weight_class x carrier               0.646                   0.184
+      region x carrier               0.567                   0.160
+        carrier x dock               0.545                   0.137
+      carrier x driver               0.533                   0.107
+          weight_class               0.068                   0.044
+pure-noise columns: dock 0.004, driver 0.000
+
+=== 2. degree 2 and a carrier multiplier, screened again ===
+carrier multipliers found: Arrow 1.090, Beacon 0.975, Cobalt 0.898, Delta 1.022
+fit: R2 0.906, RMSE 31.4
+              feature  mutual_information  information_efficiency
+         weight_class               0.062                   0.040
+region x weight_class               0.092                   0.030
+               region               0.033                   0.021
+  weight_class x dock               0.052                   0.015
+weight_class x driver               0.055                   0.012
+
+=== 3. segment_position_report by weight class x region, against the second benchmark ===
+       segment   n  difference  pct
+ Heavy_Central 527        -8.9 -1.5
+   Heavy_North 452        -6.2 -1.0
+   Heavy_South 329        47.5  8.1
+ Light_Central 956         0.8  0.2
+   Light_North 841        -0.3 -0.1
+   Light_South 600         1.6  0.4
+Medium_Central 955        -1.3 -0.3
+  Medium_North 803        -2.8 -0.6
+  Medium_South 537        -2.5 -0.5
+
+=== 4. a weight class x region multiplier added, screened a third time ===
+Heavy_South multiplier 1.083 relative to the median cell (built in 1.100)
+fit: R2 0.920, RMSE 29.1
+              feature  mutual_information  information_efficiency
+         weight_class               0.029                   0.019
+region x weight_class               0.023                   0.007
+weight_class x driver               0.029                   0.006
+               region               0.009                   0.006
+        dock x driver               0.020                   0.004
+
+Saved benchmark_screening.png

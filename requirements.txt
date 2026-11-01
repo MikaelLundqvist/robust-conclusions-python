@@ -1,1 +1,7 @@
 robustkit==0.6.0
+statsmodels
+matplotlib
+pandas
+numpy
+scipy
+scikit-learn

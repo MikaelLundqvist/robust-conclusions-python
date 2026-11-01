@@ -1,4 +1,4 @@
-robustkit==0.6.0
+robustkit==0.7.0
 statsmodels
 matplotlib
 pandas
